@@ -72,6 +72,12 @@ module sdram_controller2( sdram_cke, sdram_clk, sdram_cs_n, sdram_we_n, sdram_ra
   assign sdram_dqml_n = dqml_n;
   assign sdram_cs_n = 1'b0;    // siempre activa!
 
+  localparam
+    WAIT100US  = 100*FREQCLKSDRAM,
+    TRP        = (20*FREQCLKSDRAM/1000)+1,      // TRP = row precharge time, time required to precharge a row for another access.
+    TRFC       = (66*FREQCLKSDRAM/1000)+1,      // TRFC = Duration of refresh command
+    TRCD       = (20*FREQCLKSDRAM/1000)+1       // TRCD = ras_n to cas_n delay time, the minimal delay between the assertion of ras_n and the assertion of cas_n. It represents the time to retrieve data from a row.
+    ;
 
 
 
