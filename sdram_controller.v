@@ -78,6 +78,33 @@ module sdram_controller2( sdram_cke, sdram_clk, sdram_cs_n, sdram_we_n, sdram_ra
     TRFC       = (66*FREQCLKSDRAM/1000)+1,      // TRFC = Duration of refresh command
     TRCD       = (20*FREQCLKSDRAM/1000)+1       // TRCD = ras_n to cas_n delay time, the minimal delay between the assertion of ras_n and the assertion of cas_n. It represents the time to retrieve data from a row.
     ;
+    
+    //Estados de mi máquina de estados
+    
+      localparam
+      RESET             = 5'd0,    // CKE a 0 durante este periodo. Esperar 100us (MAXCONT100)
+      INIT_PRECHARGEALL = 5'd1,    // tras los 100us, se hace un precharge all. Hay que esperar tRP = 20ns
+      INIT_AUTOREFRESH1 = 5'd2,    // tras esperar, se hace un autorefresh y se esperan tRFC = 66 ns
+      INIT_AUTOREFRESH2 = 5'd3,    // tras esperar, se hace otro autorefresh y se esperan tRFC = 66 ns
+      INIT_LOAD_MODE    = 5'd4,    // cargar el registro de modo y esperar tMRD = 2 clks
+      IDLE              = 5'd5,    // espera a por un comando
+      ACTIVE_ROW_READ   = 5'd6,    // activa una fila
+      ISSUE_READ        = 5'd7,    // activa una columna y manda leer
+      GET_DATA          = 5'd8,    // recoge el dato leido
+      ACTIVE_ROW_WRITE  = 5'd9,
+      ISSUE_WRITE       = 5'd10,
+      DO_AUTOREFRESH    = 5'd11,
+      WAIT_STATES       = 5'd31;   // subFSM para esperar N estados de reloj
+
+
+  localparam
+    modo_operacion_sdram = {6'b000_1_00,CL,4'b0_000};   // pag. 43. El valor de CL depende de si es -75 o -7E
+// 3 bits. Reserved: Los 3 primeros bits estan reservados para futuras compatibilidades y se dejan a 0
+// 1 bit. WB: Write Burst Mode. 0 para ráfagas y 1 para no tener ráfagas.
+// 2 bits. Op Mode. 00 para modo estandar.
+// 3 bits. CAS Lantecy. Depende del chip q tengamos -75 o -7E
+// 1 bit. BT: Burst Type. 0 Secuencial y 1 intercalado
+// 3 bits. Burst Length. Tamano de la rafaga.
 
 
 
