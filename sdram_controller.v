@@ -2,6 +2,10 @@
 
 module sdram_controller2( sdram_cke, sdram_clk, sdram_cs_n, sdram_we_n, sdram_ras_n, sdram_cas_n, sdram_addr, sdram_ba, sdram_dqmh_n, sdram_dqml_n, sdram_dq, sys_clk, sys_reset, sys_addr, sys_write_rq, sys_read_rq, sys_rfsh_rq, sys_data_in, sys_data_out, sys_busy);
 
+  input wire sys_clk;                // este reloj debe ser el doble del reloj de la SDRAM
+  input wire sys_reset;              // normalmente conectado a la versión negada del pin "locked" del PLL/MMCM
+
+
   // sdram interface
   output wire sdram_cke;			//	 Clock enable
   output reg sdram_clk;             // Clock input to SDRAM. All input signals are referenced to positive edge of CLK
@@ -24,9 +28,6 @@ module sdram_controller2( sdram_cke, sdram_clk, sdram_cs_n, sdram_we_n, sdram_ra
   inout tri [15:0] sdram_dq;
 
   // host interface
-
-  input wire sys_clk;                // este reloj debe ser el doble del reloj de la SDRAM
-  input wire sys_reset;              // normalmente conectado a la versión negada del pin "locked" del PLL/MMCM
 
   input wire [21:0] sys_addr;        // address to SDRAM (up to 4M addresses). 22 bits = 12 row addr + 2 BA + 8 column addr
 
@@ -95,6 +96,7 @@ module sdram_controller2( sdram_cke, sdram_clk, sdram_cs_n, sdram_we_n, sdram_ra
       ISSUE_WRITE       = 5'd10,
       DO_AUTOREFRESH    = 5'd11,
       WAIT_STATES       = 5'd31;   // subFSM para esperar N estados de reloj
+                                   // El estado WAIT_STATES es una subrutina en la FSM, ya que cuando se termina ese estado, se vuelve al siguiente estado a aquel que lo llamó, por lo que también se carga otro registro que contiene el estado al que se retorna (como una pila con profundidad 1).
 
 
   localparam
@@ -106,6 +108,164 @@ module sdram_controller2( sdram_cke, sdram_clk, sdram_cs_n, sdram_we_n, sdram_ra
 // 1 bit. BT: Burst Type. 0 Secuencial y 1 intercalado
 // 3 bits. Burst Length. Tamano de la rafaga.
 
+  reg load_wsreg;                       //  No tengo ni idea de para q vale esta señal, siempre esta a 1
+  reg [13:0] cont_wstates = 14'd0;      //  Depende de load_wsreg. Es quien cuenta el número de ciclos de reloj de espera, que es diferente para cada caso
+  reg [13:0] wait_states;               //  Depende de cont_wstates. Indica la cuenta máxima del contador, es decir, todos los ciclos de reloj que hay que esperar
+
+
+  reg [4:0] state = RESET;              //  Creamos la variable para los estados de la FSM y la inicializamos con RESET (estado inicial)
+  reg [4:0] next_state;                 //  Variable para el siguiente estado de la FSM
+  reg load_rtstate;                     //  Variable para cargar la subrutina WAIT_STATES
+  reg [4:0] reg_return_state = RESET;   //  Con esta variable indicamos a qué estado tenemos que volver al salir de la subrutina
+  reg [4:0] return_state;               //  Con esta variable indicamos a qué estado tenemos que volver al salir de la subrutina
+
+  reg load_dout;                        //  Variable para activar la salida del dato leído de la SRAM.
+
+/// MÁQUINA DE ESTADOS
+  always @* begin                           // bloque combinacional que en función del estado actual y de las entradas, calcula las salidas y el nuevo estado.
+    cke = 1'b1;  // valores por defecto
+    ba = 2'b00;
+    dqmh_n = 1'b0;
+    dqml_n = 1'b0;
+    load_wsreg = 1'b0;
+    wait_states = 14'd0;
+    comando = NO_OP;
+    load_rtstate = 1'b0;
+    return_state = RESET;
+    next_state = RESET;
+    sys_busy = 1'b1;
+    saddr = 13'h0000;
+    load_dout = 1'b0;
+    case (state)
+      RESET: 
+        begin
+          cke = 1'b0;
+          wait_states = WAIT100US;
+          load_wsreg = 1'b1;
+          next_state = WAIT_STATES;
+          load_rtstate = 1'b1;
+          return_state = INIT_PRECHARGEALL;
+        end
+      INIT_PRECHARGEALL:
+        begin
+          comando = PREC;       // tras este comando hay que esperar tRP = 20 ns (2 CLK @64 MHz)
+          wait_states = TRP-1;  
+          load_wsreg = 1'b1;
+          next_state = WAIT_STATES;
+          load_rtstate = 1'b1;
+          return_state = INIT_AUTOREFRESH1;
+        end
+      INIT_AUTOREFRESH1:
+        begin
+          comando = ASRF;       // tras este comando hay que esperar tRFC = 66 ns (5 CLKs @64 MHz)
+          wait_states = TRFC-1;
+          load_wsreg = 1'b1;
+          next_state = WAIT_STATES;
+          load_rtstate = 1'b1;
+          return_state = INIT_AUTOREFRESH2;
+        end          
+      INIT_AUTOREFRESH2:
+        begin
+          comando = ASRF;       // tras este comando hay que esperar tRFC = 66 ns (5 CLKs @64 MHz)
+          wait_states = TRFC-1;  
+          load_wsreg = 1'b1;
+          next_state = WAIT_STATES;
+          load_rtstate = 1'b1;
+          return_state = INIT_LOAD_MODE;
+        end    
+      INIT_LOAD_MODE:
+        begin
+          comando = LMRG;       // tras este comando hay que esperar 2 CLKs
+          saddr = modo_operacion_sdram;
+          wait_states = 14'd1;  // 1 CLKs
+          load_wsreg = 1'b1;
+          next_state = WAIT_STATES;
+          load_rtstate = 1'b1;
+          return_state = IDLE;
+        end        
+      IDLE:
+        begin
+          sys_busy  = 1'b0;
+          casex ({sys_rfsh_rq, sys_read_rq, sys_write_rq})
+            3'b1xx:  next_state = DO_AUTOREFRESH;
+            3'b01x:  next_state = ACTIVE_ROW_READ; 
+            3'b001:  next_state = ACTIVE_ROW_WRITE;
+            default: next_state = IDLE;
+          endcase
+        end
+      ACTIVE_ROW_READ:
+        begin
+          comando = ACTIV;      // tras este comando, hay que esperar tRCD (20 ns, o sea 2 CLK @64 MHz)
+          saddr = sys_addr[23:11];  // fila que queremos abrir (parte más alta de la dirección)
+          ba = sys_addr[1:0];       // el banco lo establecen los dos bits más bajos de la dirección
+          wait_states = TRCD-1; // 1 CLKs para esperar ACTIV
+          load_wsreg = 1'b1;
+          next_state = WAIT_STATES;
+          load_rtstate = 1'b1;
+          return_state = ISSUE_READ;
+        end
+      ISSUE_READ:
+        begin
+          comando = READ;
+          saddr = {4'b0010, sys_addr[10:2]};   // columna. auto-precharge (20ns) al final del read
+          ba = sys_addr[1:0];
+          wait_states = CL-1;  // 2 o 3 ws
+          load_wsreg = 1'b1;
+          next_state = WAIT_STATES;
+          load_rtstate = 1'b1;
+          return_state = GET_DATA;
+        end
+      GET_DATA:
+        begin
+          load_dout = 1'b1;
+          wait_states = TRP-1;  // 1 CLKs para esperar el autoprecharge
+          load_wsreg = 1'b1;
+          next_state = WAIT_STATES;
+          load_rtstate = 1'b1;
+          return_state = IDLE;
+        end
+      ACTIVE_ROW_WRITE:
+        begin
+          comando = ACTIV;      // tras este comando, hay que esperar tRCD (20 ns, o sea 2 CLK @64 MHz)
+          saddr = sys_addr[23:11];  // fila que queremos abrir (parte más alta de la dirección)
+          ba = sys_addr[1:0];       // el banco lo establecen los dos bits más bajos de la dirección
+          wait_states = TRCD-1; // 1 CLKs para esperar ACTIV
+          load_wsreg = 1'b1;
+          next_state = WAIT_STATES;
+          load_rtstate = 1'b1;
+          return_state = ISSUE_WRITE;
+        end
+      ISSUE_WRITE:
+        begin
+          comando = WRIT;
+          saddr = {4'b0010, sys_addr[10:2]};   // columna. auto-precharge (20ns) al final del read
+          ba = sys_addr[1:0];
+          wait_states = TRP;   // después de WRITE, esperar (NOP+autoprecharge)
+          load_wsreg = 1'b1;
+          next_state = WAIT_STATES;
+          load_rtstate = 1'b1;
+          return_state = IDLE;
+        end
+      DO_AUTOREFRESH:
+        begin
+          comando = ASRF;       // tras este comando hay que esperar 66 ns (5 CLKs @64 MHz)
+          wait_states = TRFC-1;
+          load_wsreg = 1'b1;
+          next_state = WAIT_STATES;
+          load_rtstate = 1'b1;
+          return_state = IDLE;
+        end    
+          
+      WAIT_STATES:
+        begin
+          comando = NO_OP;
+          if (cont_wstates == 14'd1)
+            next_state = reg_return_state;
+          else
+            next_state = WAIT_STATES;
+        end
+    endcase
+  end
 
 
 endmodule
