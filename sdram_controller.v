@@ -101,12 +101,15 @@ module sdram_controller2( sdram_cke, sdram_clk, sdram_cs_n, sdram_we_n, sdram_ra
 
   localparam
     modo_operacion_sdram = {6'b000_1_00,CL,4'b0_000};   // pag. 43. El valor de CL depende de si es -75 o -7E
+//13 bits:
 // 3 bits. Reserved: Los 3 primeros bits estan reservados para futuras compatibilidades y se dejan a 0
 // 1 bit. WB: Write Burst Mode. 0 para ráfagas y 1 para no tener ráfagas.
 // 2 bits. Op Mode. 00 para modo estandar.
 // 3 bits. CAS Lantecy. Depende del chip q tengamos -75 o -7E
 // 1 bit. BT: Burst Type. 0 Secuencial y 1 intercalado
 // 3 bits. Burst Length. Tamano de la rafaga.
+
+// Mode register bits M[2:0] specify the BL; M3 specifies the type of burst; M[6:4] specify the CL; M7 and M8 specify the operating mode; M9 specifies the write burst mode; and M10-Mn should be set to zero to ensure compatibility with future revisions. Mn + 1 and Mn + 2 should be set to zero to select the mode register.
 
   reg load_wsreg;                       //  No tengo ni idea de para q vale esta señal, siempre esta a 1
   reg [13:0] cont_wstates = 14'd0;      //  Depende de load_wsreg. Es quien cuenta el número de ciclos de reloj de espera, que es diferente para cada caso
@@ -124,7 +127,7 @@ module sdram_controller2( sdram_cke, sdram_clk, sdram_cs_n, sdram_we_n, sdram_ra
 /// MÁQUINA DE ESTADOS
   always @* begin                           // bloque combinacional que en función del estado actual y de las entradas, calcula las salidas y el nuevo estado.
     cke = 1'b1;  // valores por defecto
-    ba = 2'b00;
+    ba = 2'b00;										//	** Si en un case, dentro de un always combinacional, no especifico el valor de una señal, ésta toma el valor por defecto que hubiera puesto al principio. **
     dqmh_n = 1'b0;
     dqml_n = 1'b0;
     load_wsreg = 1'b0;
