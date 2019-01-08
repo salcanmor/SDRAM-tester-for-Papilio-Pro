@@ -270,5 +270,48 @@ module sdram_controller2( sdram_cke, sdram_clk, sdram_cs_n, sdram_we_n, sdram_ra
     endcase
   end
 
+  initial sdram_clk = 1'b0;
+
+  always @(posedge clk) begin
+    if (clken == 1'b1) begin
+      sdram_clk <= ~sdram_clk;
+      if (reset == 1'b1) begin
+        state <= RESET;
+      end
+      else begin
+        if (sdram_clk == 1'b1) begin
+          state <= next_state;
+          if (load_rtstate == 1'b1)
+            reg_return_state <= return_state;
+        end
+      end
+    end
+  end
+
+
+  always @(posedge clk) begin
+    if (clken == 1'b1) begin
+      if (sdram_clk == 1'b1) begin
+        if (load_wsreg == 1'b1)
+          cont_wstates <= wait_states;
+        else if (cont_wstates != 14'd0)
+          cont_wstates <= cont_wstates + 14'h3FFF;  // sumar -1
+        else
+          cont_wstates <= 14'd0;
+      end
+    end
+  end
+
+
+  always @(posedge clk) begin
+    if (clken == 1'b1) begin
+      if (load_dout == 1'b1)
+        dout <= sdram_dq;
+    end
+  end
+
+  assign sdram_dq = (state == ISSUE_WRITE)? din : 16'hZZZZ;
 
 endmodule
+
+`default_nettype wire
