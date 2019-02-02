@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 
-//  Las seÒales que comienzan con sys_ son las que conectan con la lÛgica que usuario.
-//  Las seÒales que comienzan con sdram_ son las que conectan con chip SDRAM.
+//  Las se√±ales que comienzan con sys_ son las que conectan con la l√≥gica que usuario.
+//  Las se√±ales que comienzan con sdram_ son las que conectan con chip SDRAM.
 
 //  MODIFICACIONES ANTES DE RELEASE:
 //  1-  PONER UN BLOQUE INITIAL COMO RESET, COMO HICE EN LA SRAM
@@ -46,13 +46,13 @@ module sdram_controller2(
 
   // comandos a la SDRAM. RAS,CAS,WE (pag. 29)
   localparam
-  CMD_INHIBIT = 4'b0000,  //  COMMAND INHIBIT (NOP)
+  CMD_INHIBIT = 4'b1000,  //  COMMAND INHIBIT (NOP)
   CMD_NO_OP   = 4'b0111,  /// no operation
   CMD_ACTIVE   = 4'b0011,  /// select bank and activate row. addr=fila, ba=banco
-  CMD_READ    = 4'b0101,  /// select bank and column, and start READ burst. addr[8:0]=columna. ba=banco. A10=1 para precharge despuÈs de read
+  CMD_READ    = 4'b0101,  /// select bank and column, and start READ burst. addr[8:0]=columna. ba=banco. A10=1 para precharge despu√©s de read
   CMD_WRITE    = 4'b0100,  /// select bank and column, and start WRITE burst. Mismas cosas que en READ. El dato debe estar ya presente en DQ
   CMD_TERMINATE    = 4'b0110,  // burst terminate
-  CMD_PRECHARGE    = 4'b0010,  /// precarga. A10=1, precarga todos los bancos. A10=0, BA determina quÈ banco se precarga.
+  CMD_PRECHARGE    = 4'b0010,  /// precarga. A10=1, precarga todos los bancos. A10=0, BA determina qu√© banco se precarga.
   CMD_REFRESH    = 4'b0001,  /// autorefresh si CKE=1, self refresh si CKE=0
   CMD_LOAD_MODE_REG    = 4'b0000   /// load mode register. Modo en addr[11:0]
   ;
@@ -96,7 +96,7 @@ module sdram_controller2(
   reg [10:0] refresh_ctr = 0;       // Contador para refresco, para esperar justamente el tiempo que se necesita esperar
   reg refresh_flag = 0;
 
-  reg [13:0] delay_ctr = 0;         // Contador para aÒadir retraso, para esperar justamente el tiempo que se necesita esperar
+  reg [13:0] delay_ctr = 0;         // Contador para a√±adir retraso, para esperar justamente el tiempo que se necesita esperar
 
 
   reg [13:0] addr = 0, save_addr = 0;
@@ -184,13 +184,13 @@ module sdram_controller2(
 
       // El periodo de 133 MHz es 7,518797 ns. 
       //    7,813 us = 7813 ns
-      //    Por tanto 7813 / 7,518797 = 1039 ciclos de reloj. Por tanto, hay q emitir el refresh cada 1039 como m·ximo. Sino perdermos el dato.
+      //    Por tanto 7813 / 7,518797 = 1039 ciclos de reloj. Por tanto, hay q emitir el refresh cada 1039 como m√°ximo. Sino perdermos el dato.
       // Sin embargo, lo vamos a lanzar 15 ciclos antes (1024), por seguridad.
 
 
       // El periodo de 100 MHz es 10 ns. 
       //    15.625 us = 15625 ns
-      //    Por tanto 15625 / 10 = 1.562,5 ciclos de reloj. Por tanto, hay q emitir el refresh cada 1.562,5 como m·ximo. Sino perdermos el dato.
+      //    Por tanto 15625 / 10 = 1.562,5 ciclos de reloj. Por tanto, hay q emitir el refresh cada 1.562,5 como m√°ximo. Sino perdermos el dato.
       // Sin embargo, lo vamos a lanzar 32 ciclos antes (1530), por seguridad.
 
       //reading and writing also cause slow in performance
@@ -216,7 +216,7 @@ module sdram_controller2(
         cke = 1;
         cmd = CMD_NO_OP;
         state = WAIT;
-        delay_ctr = 10100;          // Le meto 100 ciclos m·s por seguridad.
+        delay_ctr = 10100;          // Le meto 100 ciclos m√°s por seguridad.
         next_state = PRECHARGE_INIT; 
       end
 
@@ -259,11 +259,11 @@ module sdram_controller2(
       LOAD_MODE_REG:begin
         cmd = CMD_LOAD_MODE_REG;
 
-        addr = {6'b000_1_00, 3'd2,4'b0_000}; // 13 bits
+        addr = {5'b00_1_00, 3'd2,4'b0_000}; // 12 bits
 
         //13 bits:
         // 3 bits. Reserved: Los 3 primeros bits estan reservados para futuras compatibilidades y se dejan a 0
-        // 1 bit. WB: Write Burst Mode. 0 para r·fagas y 1 para no tener r·fagas.
+        // 1 bit. WB: Write Burst Mode. 0 para r√°fagas y 1 para no tener r√°fagas.
         // 2 bits. Op Mode. 00 para modo estandar.
         // 3 bits. CAS Lantecy. Depende del chip q tengamos -75 o -7E
         // 1 bit. BT: Burst Type. 0 Secuencial y 1 intercalado
@@ -291,7 +291,7 @@ module sdram_controller2(
         data_dir = 0;   //leemos
         sys_data_from_sdram_valid_reg = 0;  //no hay dato valido
         sys_write_done_reg = 0;             //no hay dato valido
-        if (refresh_flag) begin             //si refresh flag est· activa
+        if (refresh_flag) begin             //si refresh flag est√° activa
           state = PRECHARGE;
           next_state = REFRESH;
           refresh_flag = 0; // reset refresh flag
