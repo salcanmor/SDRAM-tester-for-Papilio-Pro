@@ -31,10 +31,10 @@ module sdram_controller3(
   //  [21:10] 12 bits row address, [9:2] 8 bits col address, [1:0] 2 bits bank
 
   input wire [15:0] sys_data_to_sdram;    // Data to be written to SDRAM
-          input rw;               // 1 = write, 0 = read
-			 
-			         input in_valid;         // pulse high to initiate a read/write
-        output out_valid;        // pulses high when data from read is valid
+  input rw;               // 1 = write, 0 = read
+
+  input in_valid;         // pulse high to initiate a read/write
+  output out_valid;        // pulses high when data from read is valid
 
 
   //input wire sys_write_rq;                // Operation (WRITE) request signal (active high) 
@@ -42,7 +42,7 @@ module sdram_controller3(
 
   output [15:0] sys_data_from_sdram;  		// Data read from SDRAM
   output wire sys_data_from_sdram_valid; 	// Valid data read flag
-//  output wire sys_write_done;					//	Write done flag
+  //  output wire sys_write_done;					//	Write done flag
 
   //  SDRAM interface
   output wire sdram_clk;                  // Clock input to SDRAM. All input signals are referenced to positive edge of CLK
@@ -182,7 +182,7 @@ module sdram_controller3(
   assign sdram_dqmh_n = dqm_q[1];
   assign sdram_ba = ba_q;
   assign sdram_addr = a_q;
-  assign sdram_dq = dq_en_q ? dq_q : 8'hZZ; // only drive when dq_en_q is 1
+  assign sdram_dq = dq_en_q ? dq_q : 16'hZZZZ; // only drive when dq_en_q is 1
 
 
   reg [STATE_SIZE-1:0] state_d, state_q = INIT;			//	state_d is the next state. state_q is the current state
@@ -259,8 +259,8 @@ module sdram_controller3(
     // 	Therefore 15625/10 = 1.562,5 clock cycles. Therefore, it is necessary to emit the refresh every 1.562,5 maximum. In other case, we'll lose the data.
     // 	However, we're going to release it 32 cycles before (1530), just for safety.
 
-        refresh_flag_d = refresh_flag_q;
-        refresh_ctr_d = refresh_ctr_q + 1'b1;
+    refresh_flag_d = refresh_flag_q;
+    refresh_ctr_d = refresh_ctr_q + 1'b1;
     if (refresh_ctr_q  > 11'd1530) begin      
       refresh_ctr_d   = 11'd0;
       refresh_flag_d  = 1'b1;
@@ -307,7 +307,7 @@ module sdram_controller3(
           state_d = next_state_q;
           if (next_state_q == WRITE) begin
             dq_en_d = 1'b1; // enable the bus early
-            dq_d = data_q[7:0];
+            dq_d = data_q[15:0];
           end
         end
       end
@@ -439,15 +439,16 @@ module sdram_controller3(
       ///// WRITE /////
       WRITE: begin
 
+        cmd_d = CMD_WRITE;
 
-        dq_d = data_q[7:0];
+        dq_d = data_q[15:0];
         dq_en_d = 1'b1; // enable out bus
         a_d = {4'b0, addr_q[7:0]}; 	// le metemos la columna
         ba_d = addr_q[9:8];
-
-        if (byte_ctr_q == 2'd3) begin
-          state_d = IDLE;
-        end
+        state_d = IDLE;
+        //      if (byte_ctr_q == 2'd3) begin
+        //      state_d = IDLE;
+        //  end
       end
 
 
@@ -474,42 +475,42 @@ module sdram_controller3(
 
 
 
-    always @(posedge sys_clk) begin
-        if(sys_reset) begin
-            cke_q <= 1'b0;
-            dq_en_q <= 1'b0;
-            state_q <= INIT;
-            ready_q <= 1'b0;
-        end else begin
-            cke_q <= cke_d;
-            dq_en_q <= dq_en_d;
-            state_q <= state_d;
-            ready_q <= ready_d;
-        end
-
-        saved_rw_q <= saved_rw_d;
-        saved_data_q <= saved_data_d;
-        saved_addr_q <= saved_addr_d;
-
-        cmd_q <= cmd_d;
-        dqm_q <= dqm_d;
-        ba_q <= ba_d;
-        a_q <= a_d;
-        dq_q <= dq_d;
-        dqi_q <= dqi_d;
-
-        next_state_q <= next_state_d;
-        refresh_flag_q <= refresh_flag_d;
-        refresh_ctr_q <= refresh_ctr_d;
-        data_q <= data_d;
-        addr_q <= addr_d;
-        out_valid_q <= out_valid_d;
-        row_open_q <= row_open_d;
-        for (i = 0; i < 4; i = i + 1)
-            row_addr_q[i] <= row_addr_d[i];
-        precharge_bank_q <= precharge_bank_d;
-        rw_op_q <= rw_op_d;
-        byte_ctr_q <= byte_ctr_d;
-        delay_ctr_q <= delay_ctr_d;
+  always @(posedge sys_clk) begin
+    if(sys_reset) begin
+      cke_q <= 1'b0;
+      dq_en_q <= 1'b0;
+      state_q <= INIT;
+      ready_q <= 1'b0;
+    end else begin
+      cke_q <= cke_d;
+      dq_en_q <= dq_en_d;
+      state_q <= state_d;
+      ready_q <= ready_d;
     end
+
+    saved_rw_q <= saved_rw_d;
+    saved_data_q <= saved_data_d;
+    saved_addr_q <= saved_addr_d;
+
+    cmd_q <= cmd_d;
+    dqm_q <= dqm_d;
+    ba_q <= ba_d;
+    a_q <= a_d;
+    dq_q <= dq_d;
+    dqi_q <= dqi_d;
+
+    next_state_q <= next_state_d;
+    refresh_flag_q <= refresh_flag_d;
+    refresh_ctr_q <= refresh_ctr_d;
+    data_q <= data_d;
+    addr_q <= addr_d;
+    out_valid_q <= out_valid_d;
+    row_open_q <= row_open_d;
+    for (i = 0; i < 4; i = i + 1)
+      row_addr_q[i] <= row_addr_d[i];
+    precharge_bank_q <= precharge_bank_d;
+    rw_op_q <= rw_op_d;
+    byte_ctr_q <= byte_ctr_d;
+    delay_ctr_q <= delay_ctr_d;
+  end
 endmodule
