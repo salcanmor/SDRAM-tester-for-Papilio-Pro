@@ -20,7 +20,7 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module tester(clk, reset, rx_done_tick, r_data, w_data, tx_start, tx_ready, sys_addr, sys_data_to_sdram, sys_data_from_sdram, sys_write_rq, sys_read_rq);
+module tester(clk, reset, rx_done_tick, r_data, w_data, tx_start, tx_ready, sys_addr, sys_data_to_sdram, sys_data_from_sdram, sys_write_rq, sys_read_rq, sys_data_from_sdram_valid);
 
   input wire clk;
   input wire reset;
@@ -29,6 +29,8 @@ module tester(clk, reset, rx_done_tick, r_data, w_data, tx_start, tx_ready, sys_
   output reg [7:0] w_data;
   output reg tx_start;
   input wire tx_ready;
+  
+  input wire sys_data_from_sdram_valid;
 
   output  [21:0] sys_addr;
   output  [15:0] sys_data_to_sdram;
@@ -52,7 +54,8 @@ module tester(clk, reset, rx_done_tick, r_data, w_data, tx_start, tx_ready, sys_
   lectura                   =   4'd8,         //  We have selected read operation, so that we show a message to enter the address value.
   lectura2                  =   4'd9,         //  The entered data is stored in both formats ASCII and binary.
   pintar_datos_lectura      =   4'd10,        //  We print the previous entered data
-  activar_flag_lectura      =   4'd11;        //  We send read request flag
+  activar_flag_lectura      =   4'd11,        //  We send read request flag
+  senal_valid      =   4'd12;        //  We send read request flag
 
 
   //	signal declaration
@@ -594,9 +597,13 @@ state_reg<=pintar_datos_lectura;
 		
 
 
+
+
       pintar_datos_lectura:
 		
-        begin         sys_read_rq<=0;
+        begin        
+
+		  sys_read_rq<=0;
 
           if (tx_ready)
             count_tx_ready <= count_tx_ready + 1;
@@ -656,7 +663,7 @@ state_reg<=pintar_datos_lectura;
               tx_start<=1'b0;
               count_tx_ready <= 0;
             end    
-        end
+        end 
     endcase
 
   assign sys_addr = sys_read_rq ? dato_binario3 :
