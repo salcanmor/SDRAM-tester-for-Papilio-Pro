@@ -11,7 +11,7 @@ module top
 
 
 
-    output wire sdram_clk,			///
+    output  sdram_clk,			///
     output wire sdram_cke,			///
     output wire sdram_cs_n,		///
     output wire sdram_we_n,	///
@@ -24,6 +24,9 @@ module top
   inout tri [15:0] sdram_dq			///
 
   );
+  
+  //assign sdram_clk = clk_100;
+ // assign sdram_cke = 1'b1;
 
   wire [7:0] r_data_bus;
   wire [7:0] w_data_bus;
@@ -39,6 +42,7 @@ module top
   wire button_wire;
   wire tx_ready;
   wire clk_100;
+  wire clk_n100;
 
 
   clock_100mhz clock_100mhz
@@ -47,7 +51,12 @@ module top
     // Clock out ports
     .CLK_OUT1(clk_100));    // OUT
 
-
+//	clk_wiz_100_2 clock_100mhz
+//   (// Clock in ports
+//    .CLK_IN1(clk),      // IN
+//    // Clock out ports
+//    .CLK_OUT1(clk_100),    // OUT
+//    .CLK_OUT2(clk_n100));    // OUT
 
   debouncer debouncer_unit (
     .clk(clk_100),     
@@ -87,15 +96,23 @@ tester tester (
     .sys_read_rq(sys_read_rq)
     );
 	 
-	 sdram_controller2 sdram_controller2 (
+	 
+	 
+	 
+// Instantiate the module
+sdram_controller3 sdram_controller3 (
+    .clock_100_delayed_3ns(clock_100_delayed_3ns), 
+
     .sys_clk(clk_100), 
+    .sys_reset(button_wire), 
     .sys_addr(sys_addr_bus), 
     .sys_data_to_sdram(sys_data_to_sdram_bus), 
     .sys_data_from_sdram(sys_data_from_sdram_bus), 
     .sys_data_from_sdram_valid(sys_data_from_sdram_valid), 
-    .sys_write_done(sys_write_done), 
-    .sys_write_rq(sys_write_rq), 
-    .sys_read_rq(sys_read_rq), 
+    .rw(sys_write_rq), 
+    .in_valid(1'b1), 
+    .out_valid(out_valid), 
+    .busy(busy), 
     .sdram_clk(sdram_clk), 
     .sdram_cke(sdram_cke), 
     .sdram_addr(sdram_addr), 
@@ -106,8 +123,39 @@ tester tester (
     .sdram_cs_n(sdram_cs_n), 
     .sdram_we_n(sdram_we_n), 
     .sdram_ras_n(sdram_ras_n), 
-    .sdram_cas_n(sdram_cas_n), 
-    .state_(state_)
+    .sdram_cas_n(sdram_cas_n)
     );
+
+
+	 
+
+
+//wire sdram_clk_out;
+//assign sdram_clk=clk_100;
+
+// 
+//	 sdram_controller2 sdram_controller2 (
+//    .sys_clk(clk_100), 
+//    .sys_addr(sys_addr_bus), 
+//    .sys_data_to_sdram(sys_data_to_sdram_bus), 
+//    .sys_data_from_sdram(sys_data_from_sdram_bus), 
+//    .sys_data_from_sdram_valid(sys_data_from_sdram_valid), 
+//    .sys_write_done(sys_write_done), 
+//    .sys_write_rq(sys_write_rq), 
+//    .sys_read_rq(sys_read_rq), 
+//    .sdram_clk(sdram_clk), 
+//    .sdram_cke(sdram_cke), 
+//    .sdram_addr(sdram_addr), 
+//    .sdram_dq(sdram_dq), 
+//    .sdram_ba(sdram_ba), 
+//    .sdram_dqmh_n(sdram_dqmh_n), 
+//    .sdram_dqml_n(sdram_dqml_n), 
+//    .sdram_cs_n(sdram_cs_n), 
+//    .sdram_we_n(sdram_we_n), 
+//    .sdram_ras_n(sdram_ras_n), 
+//    .sdram_cas_n(sdram_cas_n), 
+//    .state_(state_)
+//    );
+
 
 endmodule
