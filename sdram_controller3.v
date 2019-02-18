@@ -1,24 +1,28 @@
 `timescale 1ns / 1ps
-//////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date:    19:43:55 02/03/2019 
-// Design Name: 
-// Module Name:    sdram_controller3 
-// Project Name: 
-// Target Devices: 
-// Tool versions: 
-// Description: 
-//
-// Dependencies: 
-//
-// Revision: 
-// Revision 0.01 - File Created
-// Additional Comments: 
-//
-//////////////////////////////////////////////////////////////////////////////////
-module sdram_controller3(
+//----------------------------------------------------------------------------------//
+//-- Engineer: Salvador Canas Moreno																//
+//-- 																											//
+//-- LinkdIn: https://www.linkedin.com/in/salvador-canas-moreno/							//																			//
+//-- 																											//
+//-- Description: SDRAM controller for Papilio Pro board which uses						//
+//--					a MT48LC4M16A2-7E SDRAM chip. This module was designed under the	//
+//-- 					assumption that the clock rate is 100MHz. Timing values would		//
+//-- 					need to be re-evaluated under different clock rates.					//
+//-- 					This controller does burst reads and writes of 1 byte. In other	//
+//--					words, it does not use bursts.												//
+//--					This controller only closes a row when it has to.						//
+//--																											//
+//--					The 22 bits address input is organized as described below:			//
+//--					[21:10] 12 bits row address, [9:8] 2 bits bank, [7:0] 8 bits col address	//
+//--																											//
+//--					Revision:																			//
+//--					Revision 0.1 - Initial verilog version										//
+//--																											//
+//----------------------------------------------------------------------------------//
+
+
+
+module sdram_controller(
   sys_clk, sys_reset, sys_addr, sys_data_to_sdram, sys_data_from_sdram, sys_data_from_sdram_valid, rw, in_valid, out_valid, busy,
   sdram_clk, sdram_cke, sdram_addr, sdram_dq, sdram_ba, sdram_dqmh_n, sdram_dqml_n, sdram_cs_n, sdram_we_n, sdram_ras_n, sdram_cas_n
 );
@@ -28,21 +32,15 @@ module sdram_controller3(
   input wire sys_clk;                     // Clock to the SDRAM controller
   input wire sys_reset;                   // Reset for the controller
   input wire [21:0] sys_addr;             // Address bus to SDRAM. 22 bits = [ 12 row addr + 8 column addr + 2 BA ]
-  //  [21:10] 12 bits row address, [9:2] 8 bits col address, [1:0] 2 bits bank
 
   input wire [15:0] sys_data_to_sdram;    // Data to be written to SDRAM
-  input rw;               // 1 = write, 0 = read
+  input rw;               						// 1 = write, 0 = read
 
-  input in_valid;         // pulse high to initiate a read/write
-  output out_valid;        // pulses high when data from read is valid
-
-
-  //input wire sys_write_rq;                // Operation (WRITE) request signal (active high) 
-  //input wire sys_read_rq;                 // Operation (READ) request signal (active high)
+  input in_valid;         						// pulse high to initiate a read/write
+  output out_valid;        					// pulses high when data from read is valid
 
   output [15:0] sys_data_from_sdram;  		// Data read from SDRAM
   output wire sys_data_from_sdram_valid; 	// Valid data read flag
-  //  output wire sys_write_done;					//	Write done flag
 
   //  SDRAM interface
   output wire sdram_clk;                  // Clock input to SDRAM. All input signals are referenced to positive edge of CLK
@@ -62,33 +60,34 @@ module sdram_controller3(
 
   //	Commands for the SDRAM (table 14 from datasheet)
 
-  localparam CMD_UNSELECTED		= 4'b1000;
-  localparam CMD_NOP           	= 4'b0111;
-  localparam CMD_ACTIVE        	= 4'b0011;
-  localparam CMD_READ          	= 4'b0101;
-  localparam CMD_WRITE         	= 4'b0100;
-  localparam CMD_BURST_TERMINATE	= 4'b0110;
-  localparam CMD_PRECHARGE     	= 4'b0010;
-  localparam CMD_REFRESH       	= 4'b0001;
-  localparam CMD_LOAD_MODE_REG 	= 4'b0000;
+  localparam 
+	CMD_UNSELECTED		= 4'b1000,
+   CMD_NOP           	= 4'b0111,
+   CMD_ACTIVE        	= 4'b0011,
+   CMD_READ          	= 4'b0101,
+   CMD_WRITE         	= 4'b0100,
+   CMD_BURST_TERMINATE	= 4'b0110,
+   CMD_PRECHARGE     	= 4'b0010,
+   CMD_REFRESH       	= 4'b0001,
+   CMD_LOAD_MODE_REG 	= 4'b0000;
 
 
   //	State of the Finite State Machine
 
   localparam STATE_SIZE = 4;
   localparam  INIT = 0,
-  WAIT = 1,
-  PRECHARGE_INIT = 2,
-  REFRESH_INIT_1 = 3,
-  REFRESH_INIT_2 = 4,
-  LOAD_MODE_REG = 5,
-  IDLE = 6,
-  REFRESH = 7,
-  ACTIVATE = 8,
-  READ = 9,
-  READ_RES = 10,
-  WRITE = 11,
-  PRECHARGE = 12;
+	  WAIT = 1,
+	  PRECHARGE_INIT = 2,
+	  REFRESH_INIT_1 = 3,
+	  REFRESH_INIT_2 = 4,
+	  LOAD_MODE_REG = 5,
+	  IDLE = 6,
+	  REFRESH = 7,
+	  ACTIVATE = 8,
+	  READ = 9,
+	  READ_RES = 10,
+	  WRITE = 11,
+	  PRECHARGE = 12;
 
   wire sdram_clk_ddr;
 
@@ -143,12 +142,12 @@ module sdram_controller3(
   // The inputs of this module are registered in the register below
   // and then sent to the registers packaged them into IOB; IO buffer flip-flops. 
 
-  reg cke_d;				//	Register for the SDRAM clock enable signal input
-  reg [1:0] dqm_d;		//	Register for the SDRAM byte mask bus input
-  reg [3:0] cmd_d;		//	Register for the SDRAM command bus input
+  reg cke_d;			//	Register for the SDRAM clock enable signal input
+  reg [1:0] dqm_d;	//	Register for the SDRAM byte mask bus input
+  reg [3:0] cmd_d;	//	Register for the SDRAM command bus input
   reg [1:0] ba_d;		//	Register for the SDRAM bank bus input
   reg [11:0] a_d;		//	Register for the SDRAM address bus input
-  reg [15:0] dq_d;		//	Register for the data going to the SDRAM
+  reg [15:0] dq_d;	//	Register for the data going to the SDRAM
   reg [15:0] dqi_d;	//	Register for the data coming from the SDRAM	
 
 
@@ -286,27 +285,27 @@ module sdram_controller3(
 
     case (state_q)
 
-      //============================== INITALIZATION ==============================
+      //============================== BEGIN: INITALIZATION ==============================//
 
       INIT: begin
         ready_d = 1'b0;
         row_open_d = 4'b0;
         out_valid_d = 1'b0;
-        a_d = 12'b0;						// bus de direcciones a 0
-        ba_d = 2'b0;						// bancos a 
-        cke_d = 1'b1;					// habilitamos la señal cke
-        state_d = WAIT;					//siguiente estado
-        delay_ctr_d = 14'd10100; // wait for 101us
-        next_state_d = PRECHARGE_INIT;	//estado de retorno
-        dq_en_d = 1'b0;				// normally keep the bus in high-Z	
+        a_d = 12'b0;							// set address bus to 0
+        ba_d = 2'b0;							// set banks to 0 
+        cke_d = 1'b1;						// enable cke signal
+        state_d = WAIT;						//	next state
+        delay_ctr_d = 14'd10100; 		// wait for 101us
+        next_state_d = PRECHARGE_INIT;	//	return state
+        dq_en_d = 1'b0;						// normally keep the bus in high-Z	
       end
 
-      WAIT: begin										// durante este estado metemos la operacion NOP
-        delay_ctr_d = delay_ctr_q - 1'b1;		// restamos 1 al contador de retraso
+      WAIT: begin										// During this state, we enable NOP operation
+        delay_ctr_d = delay_ctr_q - 1'b1;		// We subtract 1 from the delay counter
         if (delay_ctr_q == 14'd0) begin
           state_d = next_state_q;
           if (next_state_q == WRITE) begin
-            dq_en_d = 1'b1; // enable the bus early
+            dq_en_d = 1'b1; 						// Enable the bus early
             dq_d = data_q[15:0];
           end
         end
@@ -314,8 +313,8 @@ module sdram_controller3(
 
 
       PRECHARGE_INIT: begin 
-        cmd_d = CMD_PRECHARGE;				// aqui ya no usamos NOP, usamos el comando de precarga
-        a_d[10] = 1'b1; // all banks		//	precargamos todos los bancos
+        cmd_d = CMD_PRECHARGE;				// Here, we no longer use NOP, we use the precharge command
+        a_d[10] = 1'b1; 						//	Precharge all banks
         ba_d = 2'd0;
         state_d = WAIT;
         next_state_d = REFRESH_INIT_1;
@@ -345,44 +344,50 @@ module sdram_controller3(
         cmd_d = CMD_LOAD_MODE_REG;
         ba_d = 2'b0;
         // Reserved, Burst Access, Standard Op, CAS = 2, Sequential, Burst = 0
-        a_d = {3'b000, 1'b0, 2'b00, 3'b010, 1'b0, 3'b000}; //010
+        a_d = {3'b000, 1'b0, 2'b00, 3'b010, 1'b0, 3'b000};
         state_d = WAIT;
         delay_ctr_d = 13'd2;					// tMRD = 2 tCK
         next_state_d = IDLE;
         refresh_flag_d = 1'b0;
-        refresh_ctr_d = 10'b1;			// Seteamos a 1 el contador para refresco
+        refresh_ctr_d = 10'b1;				// We set to 1 the counter for refreshment
         ready_d = 1'b1;
       end
+		
+      //============================== END: INITALIZATION ==============================//
 
-      //============================== IDLE ==============================
+
+      //============================== BEGIN: IDLE ==============================//
 
       IDLE: begin
-        if (refresh_flag_q) begin // we need to do a refresh
+        if (refresh_flag_q) begin 			// Do we need to do a refresh?
           state_d = PRECHARGE;
           next_state_d = REFRESH;
-          precharge_bank_d = 3'b100; // all banks
-          refresh_flag_d = 1'b0; // clear the refresh flag
-        end else if (!ready_q) begin // operation waiting. Nos quedamos esperando a que alguien meta dato/dirección y active in_valid
-          ready_d = 1'b1; // clear the queue
-          rw_op_d = saved_rw_q; // save the values we'll need later. AQuí guardamos en un reg el valor del flag de lectura/escritura
-          addr_d = saved_addr_q;	// AQuí guardamos en un reg el valor del flag de lectura/escritura
+          precharge_bank_d = 3'b100; 		// Precharge all banks
+          refresh_flag_d = 1'b0; 			// Clear the refresh flag
+        end else if (!ready_q) begin		// We keep waiting until receive data/address and in_valid got enabled
+          ready_d = 1'b1; 						// Clear the queue
+          rw_op_d = saved_rw_q; 				// Save the values we'll need later. AQuí guardamos en un reg el valor del flag de lectura/escritura
+          addr_d = saved_addr_q;				// Here, we store (in a reg) the value of the read/write flag
 
-          if (saved_rw_q) // Write // Si tenemos una escritura
-            data_d = saved_data_q;	// También guardamos en un reg el valor del dato a escribir
+          if (saved_rw_q) 						// Write operation selected?
+            data_d = saved_data_q;			// We also save in a reg the value of the data to write
 
           // if the row is open we don't have to activate it
-          if (row_open_q[saved_addr_q[9:8]]) begin		//comprobamos que el banco en cuestión está abierto
-            if (row_addr_q[saved_addr_q[9:8]] == saved_addr_q[21:10]) begin	//comprobamos que la row (fila) en cuestión está abierto
+          if (row_open_q[saved_addr_q[9:8]]) begin		// We check that the bank in question is open
+            if (row_addr_q[saved_addr_q[9:8]] == saved_addr_q[21:10]) begin	// We check that the row in question is open
               // Row is already open
-              if (saved_rw_q)				//hemos seleccionado ESCRITURA?
+              if (saved_rw_q)					// Read operation selected?
                 state_d = WRITE;
               else
                 state_d = READ;
             end else begin
-              // A different row in the bank is open		//Si tenemos abierta una fila distinta a la que queremos, la cerramos y abrimos la fila que queremos
-              state_d = PRECHARGE; // precharge open row
-              precharge_bank_d = {1'b0, saved_addr_q[9:8]};	//le metemos el 0 para q no cierre todo, sino solo la fila en cuestion
-              next_state_d = ACTIVATE; // open current row
+				
+              // A different row in the bank is open		
+				  //If we have a different row open to the one we want, we close it and open the row we want
+
+              state_d = PRECHARGE; 			// precharge open row
+              precharge_bank_d = {1'b0, saved_addr_q[9:8]};	//	We use the 1'b0 to not close everything, but only the row in question
+              next_state_d = ACTIVATE; 	// open current row
             end
           end else begin
             // no rows open
@@ -391,9 +396,11 @@ module sdram_controller3(
         end
       end
 
+      //============================== END: IDLE ==============================//
 
 
-      ///// REFRESH /////
+      //============================== BEGIN: REFRESH ==============================//
+
       REFRESH: begin
         cmd_d = CMD_REFRESH;
         state_d = WAIT;
@@ -401,7 +408,10 @@ module sdram_controller3(
         next_state_d = IDLE;
       end
 
-      ///// ACTIVATE /////
+      //============================== END: REFRESH ==============================//
+		
+      //============================== BEGIN: ACTIVATE ==============================//
+
       ACTIVATE: begin
         cmd_d = CMD_ACTIVE;
         a_d = addr_q[21:10];
@@ -414,59 +424,69 @@ module sdram_controller3(
         else
           next_state_d = READ;
 
-        row_open_d[addr_q[9:8]] = 1'b1; // row is now open // guardamos qué banco está abierto
-        row_addr_d[addr_q[9:8]] = addr_q[21:10];				//	guardamos qué row (fila) está abierta y en qué banco
+        row_open_d[addr_q[9:8]] = 1'b1; // row is now open 	// we save which bank is open
+        row_addr_d[addr_q[9:8]] = addr_q[21:10];				//	we save which row (in which bank) is open
       end
 
+      //============================== END: ACTIVATE ==============================//
+		
+      //============================== BEGIN: READ ==============================//
 
-      ///// READ /////
       READ: begin
         cmd_d = CMD_READ;
-        a_d = {4'b0, addr_q[7:0]}; 	// le metemos la columna
+        a_d = {4'b0, addr_q[7:0]}; 	// We put the column
         ba_d = addr_q[9:8];
         state_d = WAIT;
-        delay_ctr_d = 13'd2; // wait for the data to show up
+        delay_ctr_d = 13'd2; 			// Wait for the data to show up
         next_state_d = READ_RES;
 
       end
+		
+      //============================== END: READ ==============================//
+
+      //============================== BEGIN: READ_RES ==============================//
+
 
       READ_RES: begin
-        data_d = dqi_q; // shift the data in
+        data_d = dqi_q; 				// shift the data in
         out_valid_d = 1'b1;
         state_d = IDLE;
       end
 
-      ///// WRITE /////
-      WRITE: begin
+      //============================== END: READ ==============================//
 
+      //============================== BEGIN: WRITE ==============================//
+
+      WRITE: begin
         cmd_d = CMD_WRITE;
 
         dq_d = data_q[15:0];
-        dq_en_d = 1'b1; // enable out bus
-        a_d = {4'b0, addr_q[7:0]}; 	// le metemos la columna
+        dq_en_d = 1'b1; 				// enable out bus
+        a_d = {4'b0, addr_q[7:0]}; 	//  We put the column
         ba_d = addr_q[9:8];
+
         state_d = IDLE;
-        //      if (byte_ctr_q == 2'd3) begin
-        //      state_d = IDLE;
-        //  end
       end
 
+      //============================== END: WRITE ==============================//
+		
+      //============================== BEGIN: PRECHARGE ==============================//
 
-
-      ///// PRECHARGE /////
       PRECHARGE: begin
         cmd_d = CMD_PRECHARGE;
-        a_d[10] = precharge_bank_q[2]; // all banks
+        a_d[10] = precharge_bank_q[2]; //	Precharge all banks
         ba_d = precharge_bank_q[1:0];
         state_d = WAIT;
         delay_ctr_d = 13'd0;
 
         if (precharge_bank_q[2]) begin
-          row_open_d = 4'b0000; // closed all rows
+          row_open_d = 4'b0000; 			// closed all rows
         end else begin
           row_open_d[precharge_bank_q[1:0]] = 1'b0; // closed one row
         end
       end
+		
+      //============================== END: PRECHARGE ==============================//
 
       default: state_d = INIT;
     endcase
@@ -513,4 +533,5 @@ module sdram_controller3(
     byte_ctr_q <= byte_ctr_d;
     delay_ctr_q <= delay_ctr_d;
   end
+  
 endmodule
